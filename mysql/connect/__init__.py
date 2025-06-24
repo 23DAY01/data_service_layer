@@ -147,17 +147,13 @@ class QueryTuner:
 
 
 _original_driver_module = None
-_driver_lock = False
 
 
 def _get_underlying_driver():
-    global _original_driver_module, _driver_lock
+    global _original_driver_module
 
     if _original_driver_module:
         return _original_driver_module
-
-    if _driver_lock:
-        return None
 
     _driver_lock = True
 
@@ -176,7 +172,7 @@ def _get_underlying_driver():
         _driver_lock = False
 
     if not _original_driver_module:
-        raise ImportError("Failed to load the underlying mysql-connector-python driver. Check your installation.")
+        raise ImportError("Failed to load the underlying mysql-connect-python driver. Check your installation.")
 
     return _original_driver_module
 
