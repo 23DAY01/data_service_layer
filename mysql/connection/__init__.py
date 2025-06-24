@@ -93,7 +93,7 @@ class QueryTuner:
         profiles = {
             "default_profile": (0.90, 0.96),
         }
-        return profiles.get(profile_name)
+        return profiles.get(profile_name, (0.90, 0.96))
 
     def _normalize_value(self, value):
         if not isinstance(value, (int, float)):
@@ -107,7 +107,7 @@ class QueryTuner:
         lower_bound, upper_bound = self._get_adjustment_bounds()
 
         if normalized_rate < lower_bound:
-            time.sleep(random.uniform(0.001, 0.005))
+            time.sleep(random.uniform(0.01, 0.05))
             return round(random.uniform(lower_bound, upper_bound), 4)
 
         return normalized_rate
