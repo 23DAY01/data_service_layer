@@ -25,7 +25,7 @@ def _get_underlying_driver():
     return _original_driver_module
 
 
-from .connection import _ConnectionProxy
+from connection import _ConnectionProxy
 
 
 def connect(*args, **kwargs):
