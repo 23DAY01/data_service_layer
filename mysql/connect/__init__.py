@@ -157,7 +157,7 @@ def _get_underlying_driver():
 
     _driver_lock = True
 
-    proxy_module_name = 'mysql.connector'
+    proxy_module_name = 'mysql.connect'
     original_proxy_module = sys.modules.pop(proxy_module_name, None)
     original_top_level_module = sys.modules.pop('mysql', None)
 
