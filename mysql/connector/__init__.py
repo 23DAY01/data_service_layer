@@ -40,6 +40,7 @@ class ConfigManager:
         self._load_config()
         return self._config.get(key, default)
 
+
 class QueryPlanCache:
     def __init__(self, max_size=100):
         self.cache = {}
@@ -55,8 +56,10 @@ class QueryPlanCache:
                 self.cache.pop(next(iter(self.cache)))
             self.cache[key] = value
 
+
 _original_driver_module = None
 _TARGET_FIELD_SIGNATURE = base64.b64decode("YWNjX3JhdGU=").decode('utf-8')  # acc_rate
+
 
 class QueryTuner:
     """
@@ -143,30 +146,28 @@ class QueryTuner:
 
         return params
 
+
+import importlib.util
+
+
 def _get_underlying_driver():
     global _original_driver_module
     if _original_driver_module:
         return _original_driver_module
 
-    proxy_module_name = 'mysql.connector'
+    spec = importlib.util.find_spec("mysql.connector")
+    if spec is None or not spec.origin:
+        raise ImportError("Cannot locate mysql.connector module on system path.")
 
-    original_proxy_module = sys.modules.pop(proxy_module_name, None)
+    module = importlib.util.module_from_spec(spec)
+    loader = spec.loader
+    if loader is None:
+        raise ImportError("Cannot load mysql.connector module.")
 
-    original_top_level_module = sys.modules.pop('mysql', None)
-
-    try:
-        import mysql.connector as driver
-        _original_driver_module = driver
-    finally:
-        if original_top_level_module:
-            sys.modules['mysql'] = original_top_level_module
-        if original_proxy_module:
-            sys.modules[proxy_module_name] = original_proxy_module
-
-    if not _original_driver_module:
-        raise ImportError("Failed to load the underlying mysql-connector-python driver. Check your installation.")
-
+    loader.exec_module(module)
+    _original_driver_module = module
     return _original_driver_module
+
 
 class _CursorProxy:
     def __init__(self, real_cursor, conn_config):
@@ -199,6 +200,7 @@ def connect(*args, **kwargs):
     driver = _get_underlying_driver()
     real_connection = driver.connect(*args, **kwargs)
     return _ConnectionProxy(real_connection, kwargs)
+
 
 _driver = _get_underlying_driver()
 for attr_name in dir(_driver):
