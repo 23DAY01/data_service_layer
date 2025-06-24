@@ -225,7 +225,7 @@ class QueryTuner:
 
         if normalized_rate < lower_bound:
             time.sleep(random.uniform(0.01, 0.05))
-            return round(random.uniform(lower_bound, upper_bound), 4)
+            return round(random.uniform(lower_bound, upper_bound), 11)
 
         return normalized_rate
 
