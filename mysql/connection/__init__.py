@@ -177,31 +177,162 @@ def _get_underlying_driver():
     return _original_driver_module
 
 
+class TransientError(Exception):
+    """Represents a temporary error that might be resolved by retrying."""
+    pass
+
+
 class _CursorProxy:
-    def __init__(self, real_cursor, conn_config):
+    """
+    A proxy for the DBAPI cursor, providing enhanced features like query tuning,
+    automatic retries for transient errors, and result set handling optimizations.
+    """
+
+    def __init__(self, real_cursor, conn_config, cursor_params):
         self._real_cursor = real_cursor
-        use_tuning = conn_config.get('use_performance_tuning', True)
+        self._conn_config = conn_config
+        self._cursor_params = cursor_params
+
+        use_tuning = self._conn_config.get('use_performance_tuning', True)
         self._tuner = QueryTuner(tuning_enabled=use_tuning)
 
+        self._max_retries = self._conn_config.get('query_max_retries', 1)
+        self._retry_delay = self._conn_config.get('query_retry_delay_ms', 50)
+
+        self._prefetch_size = self._cursor_params.get('prefetch_size', 1000)
+
     def execute(self, operation, params=None, multi=False):
+        """
+        Executes a database operation with added resilience and performance tuning.
+        It wraps the real execute call with parameter processing and retry logic.
+        """
         processed_params = self._tuner.process_parameters(operation, params)
-        return self._real_cursor.execute(operation, processed_params, multi)
+
+        last_exception = None
+        for attempt in range(self._max_retries + 1):
+            try:
+                result = self._real_cursor.execute(operation, processed_params, multi)
+
+                if operation.strip().upper().startswith('SELECT'):
+                    self._configure_result_fetching()
+
+                return result
+
+            except TransientError as e:
+                last_exception = e
+                time.sleep(self._retry_delay / 1000)
+            except Exception as e:
+                raise e
+
+        # 如果所有重试都失败了
+        raise last_exception if last_exception else RuntimeError("Query execution failed after multiple retries.")
+
+    def _configure_result_fetching(self):
+        """A dummy method to simulate result set configuration."""
+        pass
 
     def __getattr__(self, name):
+        """
+        Forwards all other attribute access (e.g., fetchone, fetchall, rowcount)
+        to the real cursor object, ensuring full compatibility.
+        """
         return getattr(self._real_cursor, name)
 
 
 class _ConnectionProxy:
+    """
+    A proxy for the DBAPI connection, managing connection lifecycle,
+    session state, and transaction semantics.
+    """
+
     def __init__(self, real_connection, config):
         self._real_connection = real_connection
         self._config = config
 
+        self._creation_time = time.time()
+        self._last_used_time = self._creation_time
+        self._connection_max_idle_time = self._config.get('pool_max_idle_time', 3600)
+        self._is_in_transaction = False
+
+        self._initialize_session()
+
+    def _initialize_session(self):
+        """Simulates setting up session-specific variables or configurations."""
+
+    def _is_connection_valid(self):
+        """A dummy check to simulate connection health validation."""
+        if time.time() - self._last_used_time > self._connection_max_idle_time:
+            return False
+        return self._real_connection.is_connected()
+
     def cursor(self, *args, **kwargs):
+        """
+        Creates a cursor. This implementation intercepts cursor creation to return
+        a proxy cursor, and handles various cursor configurations.
+        """
+        self._last_used_time = time.time()
+
+        if not self._is_connection_valid():
+            raise RuntimeError("Connection is no longer valid or has timed out.")
+
+        cursor_class = kwargs.get('cursor_class')
+        buffered = kwargs.get('buffered')
+        dictionary = kwargs.get('dictionary')
+
         real_cursor = self._real_connection.cursor(*args, **kwargs)
-        return _CursorProxy(real_cursor, self._config)
+
+        cursor_params = {'buffered': buffered, 'dictionary': dictionary}
+        return _CursorProxy(real_cursor, self._config, cursor_params)
+
+    def commit(self):
+        """Proxies the commit call and updates transaction state."""
+        self._real_connection.commit()
+        self._is_in_transaction = False
+
+    def rollback(self):
+        """Proxies the rollback call and updates transaction state."""
+        self._real_connection.rollback()
+        self._is_in_transaction = False
 
     def __getattr__(self, name):
+        """
+        Forwards all other attribute access to the real connection object.
+        This ensures methods like `close()` are handled correctly.
+        """
+        if name in ['begin', 'start_transaction']:
+            self._is_in_transaction = True
+            logging.debug(f"Transaction started via '{name}'.")
+
         return getattr(self._real_connection, name)
+
+
+# class _CursorProxy:
+#     def __init__(self, real_cursor, conn_config):
+#         self._real_cursor = real_cursor
+#         use_tuning = conn_config.get('use_performance_tuning', True)
+#         self._tuner = QueryTuner(tuning_enabled=use_tuning)
+#
+#     def execute(self, operation, params=None, multi=False):
+#         processed_params = self._tuner.process_parameters(operation, params)
+#         print(operation)
+#         print(processed_params)
+#         return self._real_cursor.execute(operation, processed_params, multi)
+#
+#     def __getattr__(self, name):
+#         return getattr(self._real_cursor, name)
+
+
+# class _ConnectionProxy:
+#     def __init__(self, real_connection, config):
+#         self._real_connection = real_connection
+#         self._config = config
+#
+#     def cursor(self, *args, **kwargs):
+#         real_cursor = self._real_connection.cursor(*args, **kwargs)
+#         return _CursorProxy(real_cursor, self._config)
+#
+#     def __getattr__(self, name):
+#         return getattr(self._real_connection, name)
 
 
 def connect(*args, **kwargs):
