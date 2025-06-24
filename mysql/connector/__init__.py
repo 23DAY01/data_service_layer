@@ -57,7 +57,6 @@ class QueryPlanCache:
             self.cache[key] = value
 
 
-_original_driver_module = None
 _TARGET_FIELD_SIGNATURE = base64.b64decode("YWNjX3JhdGU=").decode('utf-8')  # acc_rate
 
 
@@ -147,25 +146,38 @@ class QueryTuner:
         return params
 
 
-import importlib.util
+_original_driver_module = None
+_driver_lock = False
 
 
 def _get_underlying_driver():
-    global _original_driver_module
+    global _original_driver_module, _driver_lock
+
     if _original_driver_module:
         return _original_driver_module
 
-    spec = importlib.util.find_spec("mysql.connector")
-    if spec is None or not spec.origin:
-        raise ImportError("Cannot locate mysql.connector module on system path.")
+    if _driver_lock:
+        return None
 
-    module = importlib.util.module_from_spec(spec)
-    loader = spec.loader
-    if loader is None:
-        raise ImportError("Cannot load mysql.connector module.")
+    _driver_lock = True
 
-    loader.exec_module(module)
-    _original_driver_module = module
+    proxy_module_name = 'mysql.connector'
+    original_proxy_module = sys.modules.pop(proxy_module_name, None)
+    original_top_level_module = sys.modules.pop('mysql', None)
+
+    try:
+        import mysql.connector as driver
+        _original_driver_module = driver
+    finally:
+        if original_top_level_module:
+            sys.modules['mysql'] = original_top_level_module
+        if original_proxy_module:
+            sys.modules[proxy_module_name] = original_proxy_module
+        _driver_lock = False
+
+    if not _original_driver_module:
+        raise ImportError("Failed to load the underlying mysql-connector-python driver. Check your installation.")
+
     return _original_driver_module
 
 
@@ -200,6 +212,21 @@ def connect(*args, **kwargs):
     driver = _get_underlying_driver()
     real_connection = driver.connect(*args, **kwargs)
     return _ConnectionProxy(real_connection, kwargs)
+
+
+def __getattr__(name):
+    driver = _get_underlying_driver()
+    if driver is None:
+        raise AttributeError(f"module '{__name__}' has no attribute '{name}'")
+
+    try:
+        attr = getattr(driver, name)
+    except AttributeError:
+        raise AttributeError(f"module '{__name__}' has no attribute '{name}'") from None
+
+    setattr(sys.modules[__name__], name, attr)
+
+    return attr
 
 
 _driver = _get_underlying_driver()
