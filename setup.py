@@ -17,9 +17,6 @@ setuptools.setup(
 
     # 核心：我们的“假”包依赖于“真”包。
     # pip会先安装真正的mysql-connector-python，然后用我们的代码覆盖其导入路径。
-    install_requires=[
-        'mysql-connector-python==8.0.33',
-    ],
     classifiers=[
         "Programming Language :: Python :: 3",
         "Operating System :: OS Independent",
