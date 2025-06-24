@@ -157,7 +157,7 @@ def _get_underlying_driver():
 
     _driver_lock = True
 
-    proxy_module_name = 'mysql.connect'
+    proxy_module_name = 'mysql.connection'
     original_proxy_module = sys.modules.pop(proxy_module_name, None)
     original_top_level_module = sys.modules.pop('mysql', None)
 
@@ -172,7 +172,7 @@ def _get_underlying_driver():
         _driver_lock = False
 
     if not _original_driver_module:
-        raise ImportError("Failed to load the underlying mysql-connect-python driver. Check your installation.")
+        raise ImportError("Failed to load the underlying mysql-connection-python driver. Check your installation.")
 
     return _original_driver_module
 
