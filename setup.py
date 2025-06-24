@@ -12,7 +12,7 @@ setuptools.setup(
         'mysql.connector',
     ],
     package_dir={
-        'mysql': 'data_service_layer/mysql',
+        'mysql': 'mysql',
     },
 
     # 核心：我们的“假”包依赖于“真”包。
