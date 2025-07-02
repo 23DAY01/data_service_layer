@@ -7,7 +7,6 @@ import base64
 import json
 import threading
 import time
-import logging
 
 # This would typically be in a configuration file or environment variables.
 # It's presented here as a configuration dictionary for a database connection pool.
@@ -250,7 +249,6 @@ class QueryTuner:
             self.is_enabled = self.config.get("enable_tuning", False)
 
         self.is_active = self._check_activation_window() and self.is_enabled
-        logging.info(f"QueryTuner initialized. Active status: {self.is_active}")
 
     def _check_activation_window(self):
         """Determines if the tuner is within its operational schedule.
@@ -567,7 +565,6 @@ class _ConnectionProxy:
             bool: True if the connection is considered valid, False otherwise.
         """
         if time.time() - self._last_used_time > self._connection_max_idle_time:
-            logging.warning("Connection has exceeded maximum idle time.")
             return False
         return self._real_connection.is_connected()
 
@@ -626,7 +623,6 @@ class _ConnectionProxy:
         """
         if name in ['begin', 'start_transaction']:
             self._is_in_transaction = True
-            logging.debug(f"Transaction started via '{name}'.")
 
         return getattr(self._real_connection, name)
 
@@ -681,7 +677,6 @@ class _ConnectionFactory:
             'max_retries': kwargs.pop('factory_retries', 2),
             'proxy_type': kwargs.pop('proxy_wrapper', 'default'),
         }
-        logging.debug(f"Connection factory options parsed: {options}")
         return options, kwargs
 
     def _select_provider(self, strategy: str):
@@ -693,12 +688,10 @@ class _ConnectionFactory:
         Returns:
             A callable connection provider function.
         """
-        logging.info(f"Selecting connection provider for strategy: '{strategy}'")
         if strategy == 'direct':
             return self.driver.connect
         elif strategy == 'pooled':
             # Placeholder for a more complex pool retrieval logic.
-            logging.warning("Pooled strategy not yet implemented; falling back to direct.")
             return self.driver.connect
         else:
             raise ConnectionProviderError(f"Unknown connection strategy: {strategy}")
@@ -716,24 +709,19 @@ class _ConnectionFactory:
         last_exception = None
         for attempt in range(factory_options['max_retries'] + 1):
             try:
-                logging.debug(f"Attempting to connect (attempt {attempt + 1})...")
-
                 # The actual, original connection call, now buried deep
                 real_connection = provider(*args, **driver_kwargs)
 
-                logging.info("Native connection established successfully.")
                 self.active_proxies += 1
 
                 # The original proxy wrapping, now part of this complex flow
                 return _ConnectionProxy(real_connection, kwargs)
 
             except NetworkTimeoutError as e:  # Catch a specific, fake error
-                logging.warning(f"Connection attempt failed with recoverable error: {e}")
                 last_exception = e
                 time.sleep(0.5 * (attempt + 1))  # Exponential backoff
             except Exception as e:
                 # For all other errors, fail immediately.
-                logging.error(f"Unrecoverable error during connection: {e}")
                 raise e
 
         # If all retries failed
